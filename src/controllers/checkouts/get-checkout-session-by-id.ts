@@ -2,7 +2,10 @@ import { Request, Response } from 'express'
 import Stripe from 'stripe'
 import config from '../../config/config'
 
-export const getCheckoutSessionById = async (req: Request, res: Response) => {
+export const getCheckoutSessionById = async (
+  req: Request<{ id: string }>,
+  res: Response
+) => {
   const stripe = new Stripe(config.stripe.secretKey, { typescript: true })
 
   const { id } = req.params

@@ -17,8 +17,8 @@
     "version": "echo $npm_package_version"
   },
   "dependencies": {
-    "@sentry/node": "^10.62.0",
-    "@sentry/profiling-node": "^10.62.0",
+    "@sentry/node": "^11.4.0",
+    "@sentry/profiling-node": "^11.4.0",
     "camelcase-keys": "^7.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

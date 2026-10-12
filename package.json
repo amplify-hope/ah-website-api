@@ -28,7 +28,7 @@
     "ramda": "^0.32.0",
     "resend": "^6.32.1",
     "snakecase-keys": "^8.1.0",
-    "stripe": "^17.7.0",
+    "stripe": "^23.0.0",
     "ts-node": "^10.9.2"
   },
   "devDependencies": {

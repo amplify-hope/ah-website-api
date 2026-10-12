@@ -18,6 +18,9 @@ export default {
   stripe: {
     secretKey: process.env.STRIPE_SECRET_KEY,
     webHookSecret: process.env.STRIPE_WEBHOOK_SECRET,
+    // Only set while migrating webhook endpoints to a new Stripe API version
+    webhookSecretNext: process.env.STRIPE_WEBHOOK_SECRET_NEXT || undefined,
+    webhookActiveVersion: process.env.STRIPE_WEBHOOK_ACTIVE_VERSION || undefined,
     recurringProductId: process.env.STRIPE_RECURRING_PRODUCT_ID
   },
   resend: {

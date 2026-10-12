@@ -4,15 +4,30 @@ import config from '../../config/config'
 import { upsertProduct } from '../../db'
 import { UpsertProductInput } from '../../types'
 import { deleteProduct } from '../../db'
-import { convertUnixToIso } from '../../utils'
+import {
+  convertUnixToIso,
+  getWebhookEndpointVersion,
+  getWebhookVersionAction
+} from '../../utils'
 
 /* eslint no-console: ["error", { allow: ["log"] }] */
 export const stripeWebhooks = async (req: Request, res: Response) => {
   const stripe = new Stripe(config.stripe.secretKey, { typescript: true })
 
-  const webhookSecret: string = config.stripe.webHookSecret
+  // A ?version= query param marks the new endpoint created for a Stripe API
+  // version migration. Each endpoint has its own signing secret.
+  const endpointVersion = getWebhookEndpointVersion(req.query.version)
+  const webhookSecret: string | undefined = endpointVersion
+    ? config.stripe.webhookSecretNext
+    : config.stripe.webHookSecret
 
   if (req.method === 'POST') {
+    if (!webhookSecret) {
+      console.log(`⛔ No webhook secret configured for version: ${endpointVersion}`)
+      res.status(400).send('Webhook Error: endpoint not configured')
+      return
+    }
+
     const sig = req.headers['stripe-signature']!
     let event: Stripe.Event
 
@@ -25,6 +40,21 @@ export const stripeWebhooks = async (req: Request, res: Response) => {
       }
       console.log(`⛔ Error message: ${errorMessage}`)
       res.status(400).send(`Webhook Error: ${errorMessage}`)
+      return
+    }
+
+    const versionAction = getWebhookVersionAction(
+      endpointVersion,
+      config.stripe.webhookActiveVersion
+    )
+    if (versionAction === 'ignore') {
+      console.log(`↪️ Ignoring ${event.id} from inactive endpoint ${endpointVersion}`)
+      res.status(200).json({ received: true, ignored: true })
+      return
+    }
+    if (versionAction === 'retry') {
+      console.log(`↪️ Retry ${event.id} later, original endpoint is no longer active`)
+      res.status(400).send('Webhook endpoint is no longer active')
       return
     }
 

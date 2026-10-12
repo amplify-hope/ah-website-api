@@ -4,7 +4,10 @@ import { getPool } from './config/db'
 
 const main = async () => {
   const port = config.port
-  const server = app.listen(port, () => console.log(`Server is listening on port ${port}...`))
+  const server = app.listen(port, (err?: Error) => {
+    if (err) throw err
+    console.log(`Server is listening on port ${port}...`)
+  })
 
   const shutdown = async () => {
     server.close()

@@ -22,7 +22,7 @@ export const postCheckoutSession = async (
   const { amount, email, interval, stripeProductId, notes, isRecurring } =
     req.body
 
-  if (isRecurring && !interval) return res.status(403)
+  if (isRecurring && !interval) return res.sendStatus(403)
 
   if (interval && interval === IntervalOptions.quarter) intervalCount = 3
 

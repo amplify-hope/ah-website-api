@@ -70,6 +70,36 @@ After each deploy, `docker image prune -af` runs to prevent disk accumulation.
 - `POST /login` — Send magic link via Resend
 - `GET /verify` — Verify magic link JWT, redirect to billing portal
 
+## Stripe API Versions
+
+A Stripe API version is used in two independent places:
+
+- **API calls (this app → Stripe).** The app never sets `apiVersion`, so the `stripe` SDK sends the version it was released with on every request (`stripe@23.0.0` → `2026-09-30.endive`). Upgrading the SDK upgrades the version for all API calls. The account's default API version is not used by this app.
+- **Webhook events (Stripe → this app).** Each webhook endpoint renders event payloads with the API version it was created with. This is fixed at creation and is independent of the SDK, so moving it means creating a new endpoint.
+
+When upgrading, review the [Stripe changelog](https://docs.stripe.com/changelog) for breaking changes in the resources used here (Checkout Sessions, Prices, Products, Customers, Billing Portal, Invoices) and test in Stripe test mode before production.
+
+### Migrating webhook endpoints to a new API version
+
+The handler (`src/controllers/webhooks/stripe-webhooks.ts`) supports running the old and new endpoints side by side. The new endpoint is identified by a `?version=` query param on its URL and verified with its own signing secret.
+
+| Env var | Purpose |
+|---------|---------|
+| `STRIPE_WEBHOOK_SECRET` | Signing secret of the original endpoint (no `?version=`) |
+| `STRIPE_WEBHOOK_SECRET_NEXT` | Signing secret of the new endpoint (URL has `?version=`) |
+| `STRIPE_WEBHOOK_ACTIVE_VERSION` | Which endpoint is processed. Empty = original. Set to the `?version=` value = new |
+
+Steps (do staging with the test key first, then production):
+
+1. **Create the new endpoint** in Stripe (Dashboard or API) with the same URL plus `?version=<api version>` (for example `https://api-stage.amplifyhope.cc/stripe-webhooks?version=2026-09-30`), the same enabled events, and `api_version` set to the target version. Keep it disabled.
+2. **Deploy with `STRIPE_WEBHOOK_SECRET_NEXT`** set to the new endpoint's signing secret and `STRIPE_WEBHOOK_ACTIVE_VERSION` empty.
+3. **Enable the new endpoint.** Every event is now delivered twice. The original endpoint is processed as before. The new one is acknowledged with `200 {"ignored": true}` and not processed, so Stripe won't retry it.
+4. **Switch processing:** set `STRIPE_WEBHOOK_ACTIVE_VERSION` to the `?version=` value and restart. The new endpoint is processed, and the original endpoint returns `400`, so Stripe keeps retrying those events.
+5. **Monitor** the new endpoint (Stripe Dashboard delivery logs and the app logs). To roll back, clear `STRIPE_WEBHOOK_ACTIVE_VERSION` and restart. Events the original endpoint rejected with `400` are re-sent while Stripe is still retrying them.
+6. **Disable the original endpoint** once you're confident. Stripe won't re-deliver events it returned `400` for after that. Keep both env vars set, because the new endpoint's URL still carries `?version=`.
+
+This supports one migration at a time. `STRIPE_WEBHOOK_SECRET_NEXT` is a single secret used for any URL with a `?version=` param.
+
 ## Local Database
 
 Runs as a Docker container (see `docker-compose.yml`). Schema lives at `src/init-db/00_SCHEMA.sql`. To reset:
